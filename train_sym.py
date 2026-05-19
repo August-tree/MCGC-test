@@ -285,7 +285,6 @@ def go_run(dataname, X, gnd):
 
 
 
-
 if __name__ == "__main__":
     Switcher = {
             0: Acm,
@@ -293,8 +292,18 @@ if __name__ == "__main__":
             2: Imdb,
             3: mine_Amazon_normolized,
             4: mine_Amazon_normolized_com,
+            5: Cora,
+            6: Citeseer,
 
     }
-    for i, dataname in enumerate(["ACM", "DBLP", "IMDB", "Amazon photos", "Amazon Computers"]):
+    for i, dataname in enumerate([
+        "ACM",
+        "DBLP",
+        "IMDB",
+        "Amazon photos",
+        "Amazon_computers",
+        "Cora",
+        "Citeseer",
+    ]):
         X, gnd = Switcher[i]()
         go_run(X=X, gnd=gnd, dataname=dataname)
