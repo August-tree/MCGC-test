@@ -18,3 +18,11 @@ DBLP:
 IMDB:
   alpha: 10
   gama: -2
+
+Cora:
+  alpha: 100
+  gama: -4
+
+Citeseer:
+  alpha: 100
+  gama: -4
