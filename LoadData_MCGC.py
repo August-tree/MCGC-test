@@ -323,8 +323,64 @@ def _labels_to_indices(labels):
     return labels.squeeze()
 
 
-def _load_citation_mat(name):
+def _read_planetoid_raw(dataset, raw_dir):
+    names = ['x', 'tx', 'allx', 'y', 'ty', 'ally', 'graph']
+    objects = []
+    for name in names:
+        with open(os.path.join(raw_dir, f"ind.{dataset}.{name}"), 'rb') as f:
+            objects.append(pkl.load(f, encoding='latin1'))
+    x, tx, allx, y, ty, ally, graph = objects
+
+    test_idx_path = os.path.join(raw_dir, f"ind.{dataset}.test.index")
+    with open(test_idx_path, 'r') as f:
+        test_idx = [int(line.strip()) for line in f if line.strip()]
+    test_idx_reorder = np.array(test_idx)
+    test_idx_range = np.sort(test_idx_reorder)
+
+    features = sp.vstack((allx, tx)).tolil()
+    features[test_idx_reorder, :] = features[test_idx_range, :]
+
+    labels = np.vstack((ally, ty))
+    labels[test_idx_reorder, :] = labels[test_idx_range, :]
+
+    adj = sp.csr_matrix(nx.adjacency_matrix(nx.from_dict_of_lists(graph)))
+
+    return features.tocsr(), adj, labels
+
+
+def _save_citation_mat(dataset, features, adj, labels, mat_path):
+    os.makedirs(os.path.dirname(mat_path), exist_ok=True)
+    data = {
+        'feature': _dense_or_array(features),
+        'PAP': _dense_or_array(adj),
+        'PLP': _dense_or_array(adj),
+        'label': np.array(labels),
+    }
+    sio.savemat(mat_path, data)
+
+
+def _ensure_citation_mat(name):
     mat_path = f"./data/mat/{name}.mat"
+    if os.path.isfile(mat_path):
+        return mat_path
+
+    dataset = name.lower()
+    raw_dir = f"./data/{dataset}/raw"
+    if not os.path.isdir(raw_dir):
+        raise ValueError(f"Raw directory not found: {raw_dir}")
+
+    try:
+        import networkx as nx
+    except ImportError as exc:
+        raise ImportError("networkx is required to convert Planetoid data") from exc
+
+    features, adj, labels = _read_planetoid_raw(dataset, raw_dir)
+    _save_citation_mat(name, features, adj, labels, mat_path)
+    return mat_path
+
+
+def _load_citation_mat(name):
+    mat_path = _ensure_citation_mat(name)
     data = sio.loadmat(mat_path)
 
     features = _load_first_key(data, ["feature", "features", "X"])
