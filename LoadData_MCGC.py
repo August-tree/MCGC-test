@@ -4,7 +4,6 @@ import sys
 import warnings
 
 import numpy as np
-import scanpy as sc
 import scipy.io as sio
 import scipy.sparse as sp
 
@@ -300,9 +299,62 @@ def load_npz_to_sparse_graph(file_name):
     return SparseGraph(adj_matrix, attr_matrix, labels, node_names, attr_names, class_names, metadata)
 
 
+def _dense_or_array(value):
+    if sp.issparse(value):
+        return np.array(value.todense())
+    return np.array(value)
+
+
+def _load_first_key(data, keys):
+    for key in keys:
+        if key in data:
+            return data[key]
+    return None
+
+
+def _labels_to_indices(labels):
+    if sp.issparse(labels):
+        labels = labels.A
+    labels = np.array(labels)
+    if labels.ndim == 2:
+        if labels.shape[0] == 1 or labels.shape[1] == 1:
+            return labels.reshape(-1)
+        return np.argmax(labels, axis=0)
+    return labels.squeeze()
+
+
+def _load_citation_mat(name):
+    mat_path = f"./data/mat/{name}.mat"
+    data = sio.loadmat(mat_path)
+
+    features = _load_first_key(data, ["feature", "features", "X"])
+    if features is None:
+        raise ValueError(f"{mat_path} is missing feature/features/X")
+
+    adj_view1 = _load_first_key(data, ["PAP", "adj", "A", "G"])
+    if adj_view1 is None:
+        raise ValueError(f"{mat_path} is missing PAP/adj/A/G adjacency")
+
+    adj_view2 = _load_first_key(data, ["PLP", "adj2", "B"])
+    if adj_view2 is None:
+        adj_view2 = adj_view1
+
+    labels = _load_first_key(data, ["label", "labels", "gnd"])
+    if labels is None:
+        raise ValueError(f"{mat_path} is missing label/labels/gnd")
+
+    X_ = [
+        _dense_or_array(features),
+        _dense_or_array(adj_view1),
+        _dense_or_array(adj_view2),
+    ]
+    gnd = _labels_to_indices(labels)
+    return X_, gnd
+
+
 def mine_Amazon_normolized():
     X = []
-    Amazon = load_dataset("Data/npz/amazon_electronics_photo.npz")
+    Amazon = load_dataset("./data/npz/amazon_electronics_photo.npz")
     Adj = sp.csr_matrix(Amazon.standardize().adj_matrix).A
     Attr = sp.csr_matrix(Amazon.standardize().attr_matrix).A
     Gnd = sp.csr_matrix(Amazon.standardize().labels).A
@@ -318,7 +370,7 @@ def mine_Amazon_normolized():
 
 def mine_Amazon_normolized_com():
     X = []
-    Amazon = load_dataset("Data/npz/amazon_electronics_computers.npz")
+    Amazon = load_dataset("./data/npz/amazon_electronics_computers.npz")
     Adj = sp.csr_matrix(Amazon.standardize().adj_matrix).A
     Attr = sp.csr_matrix(Amazon.standardize().attr_matrix).A
     Gnd = sp.csr_matrix(Amazon.standardize().labels).A
@@ -380,10 +432,11 @@ def save_sparse_graph_to_npz(filepath, sparse_graph):
 
     np.savez(filepath, **data_dict)
 
+
 def Acm(dataname='ACM'):
     if dataname == "ACM":
         # Load data
-        dataset = "./Data/mat/" + 'ACM3025'
+        dataset = "./data/mat/" + 'ACM3025'
         data = sio.loadmat('{}.mat'.format(dataset))
         if (dataset == 'large_cora'):
             X = data['X']
@@ -412,7 +465,7 @@ def Acm(dataname='ACM'):
 
 def Dblp():
     ## Load data
-    dataset = "./Data/mat/" + 'DBLP4057_GAT_with_idx'
+    dataset = "./data/mat/" + 'DBLP4057_GAT_with_idx'
     data = sio.loadmat('{}.mat'.format(dataset))
     if (dataset == 'large_cora'):
         X = data['X']
@@ -444,7 +497,7 @@ def Dblp():
 
 def Imdb():
     # Load data
-    dataset = "./Data/mat/" + 'imdb5k'
+    dataset = "./data/mat/" + 'imdb5k'
     data = sio.loadmat('{}.mat'.format(dataset))
     if (dataset == 'large_cora'):
         X = data['X']
@@ -470,6 +523,14 @@ def Imdb():
     gnd = np.argmax(gnd, axis=0)
 
     return X_, gnd
+
+
+def Cora():
+    return _load_citation_mat("Cora")
+
+
+def Citeseer():
+    return _load_citation_mat("Citeseer")
 
 
 if __name__ == "__main__":
